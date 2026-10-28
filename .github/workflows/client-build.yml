@@ -33,7 +33,6 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
       - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
@@ -41,10 +40,14 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Enable Web Support
+        run: |
+          flutter config --enable-web
+          flutter config --no-analytics
+
       - name: Install Client Dependencies
         run: |
           cd client
-          flutter config --no-analytics
           flutter pub get
 
       - name: Build Web Target
@@ -89,10 +92,14 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Enable Windows Desktop Support
+        run: |
+          flutter config --enable-windows-desktop
+          flutter config --no-analytics
+
       - name: Install Client Dependencies
         run: |
           cd client
-          flutter config --no-analytics
           flutter pub get
 
       - name: Build Windows Desktop Release
