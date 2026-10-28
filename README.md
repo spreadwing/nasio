@@ -13,6 +13,7 @@
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI"></a>
   <a href="https://flutter.dev/"><img src="https://img.shields.io/badge/Flutter-3.x-02569B.svg" alt="Flutter 3.x"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/Model_Context_Protocol-1.2+-purple.svg" alt="MCP Ready"></a>
+  <a href="https://github.com/users/spreadwing/packages/container/package/nasio"><img src="https://img.shields.io/badge/GHCR-ghcr.io%2Fspreadwing%2Fnasio-2496ED?logo=docker" alt="Docker Image"></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Compose_Ready-2496ED.svg" alt="Docker"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License MIT"></a>
 </p>
@@ -92,61 +93,98 @@ nasio/
 
 ## 🚀 部署指南 (Deployment Guide)
 
-### 方案一：Docker Compose 一键部署（强烈推荐）
+### 方案一：官方预编译镜像快速部署（免编译，强烈推荐）
 
-适用于**绿联 UGOS / UGOS Pro、群晖 Synology DSM、威联通 QTS、Unraid、TrueNAS 以及普通 Linux 服务器**。
+官方预编译镜像已发布至 GitHub 官方容器注册表（GHCR），已支持 **`linux/amd64`**（x86 NAS / PC）与 **`linux/arm64`**（ARM NAS / 树莓派 / RK3588）双架构，开箱即用，无需在 NAS 本地耗时编译 Python 环境。
 
-#### 1. 克隆代码仓库
+#### 模式 A：Docker Compose 极速编排（推荐，含 qBittorrent 与 Web 控制台）
+
+1. **新建工程目录并下载编排文件**：
+   ```bash
+   mkdir nasio && cd nasio
+   curl -O https://raw.githubusercontent.com/spreadwing/nasio/main/docker-compose.yml
+   curl -O https://raw.githubusercontent.com/spreadwing/nasio/main/.env.example
+   cp .env.example .env
+   ```
+
+2. **配置环境变量 (`.env`)**：
+   按实际 NAS 挂载路径调整 `.env` 参数（重点配置 `MCP_AUTH_TOKEN` 和存储卷路径）：
+   ```ini
+   # 1. 访问安全令牌 (Bearer Token，用于 MCP 接入与客户端连接鉴权)
+   MCP_AUTH_TOKEN=your_custom_high_strength_secret_key_here
+
+   # 2. 账号权限对齐 (设置为宿主机 NAS 真实用户的 UID 和 GID，默认通常为 1000)
+   PUID=1000
+   PGID=1000
+   TZ=Asia/Shanghai
+
+   # 3. 宿主机真实共享文件夹路径挂载 (对齐绿联/群晖存储卷路径)
+   DOWNLOAD_DIR=/volume1/Download
+   MEDIA_DIR=/volume1/Media
+   TRASH_DIR=/volume1/.trash
+
+   # 4. 端口映射 (按需调整)
+   NASIO_PORT=8000
+   QBITTORRENT_WEB_PORT=8085
+   QBITTORRENT_BT_PORT=6881
+   WEB_PORT=8086
+   ```
+
+   > [!TIP]
+   > **权限自愈说明**：绿联 UGOS 等 NAS 系统在用户修改共享权限后经常会重置文件夹属主，导致 Docker 容器报权限不足或 qBittorrent 报 `missingFiles`。Nasio 官方镜像内嵌了 `entrypoint.sh` 权限自愈机制，会在启动时自动打通顶层共享目录穿透权限 (`a+rwx`)，并在运行时自动对齐属主，彻底免除权限烦恼。
+
+3. **一键拉取镜像并启动**：
+   ```bash
+   docker compose pull
+   docker compose up -d
+   ```
+
+---
+
+#### 模式 B：Docker CLI 单命令行一键启动（轻量级核心服务端）
+
+如果您只需要 Nasio 核心中枢与 MCP 协议服务，无需本地编译直接运行官方镜像：
+
 ```bash
+docker run -d \
+  --name nasio \
+  --restart unless-stopped \
+  -p 8000:8000 \
+  -e MCP_AUTH_TOKEN="your_custom_high_strength_secret_key_here" \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  -e TZ="Asia/Shanghai" \
+  -v /volume1/docker/nasio/data:/app/data \
+  -v /volume1/Download:/volume1/Download \
+  -v /volume1/Media:/volume1/Media \
+  -v /volume1/.trash:/volume1/.trash \
+  ghcr.io/spreadwing/nasio:latest
+```
+
+---
+
+### 方案二：克隆源码本地构建部署（适合二次开发）
+
+适用于需要修改源码、自定义依赖或调试开发的用户：
+
+```bash
+# 1. 克隆完整代码仓库
 git clone https://github.com/spreadwing/nasio.git
 cd nasio
-```
 
-#### 2. 配置环境变量
-从模板文件复制生成 `.env` 配置文件：
-```bash
+# 2. 配置环境变量
 cp .env.example .env
-```
-使用文本编辑器（如 `vim .env` 或 `nano .env`）修改关键参数：
-```ini
-# 1. 访问安全令牌 (Bearer Token，用于 MCP 接入与客户端连接鉴权)
-MCP_AUTH_TOKEN=your_custom_high_strength_secret_key_here
+vim .env
 
-# 2. 账号权限对齐 (设置为宿主机 NAS 真实用户的 UID 和 GID，默认通常为 1000)
-PUID=1000
-PGID=1000
-TZ=Asia/Shanghai
-
-# 3. 宿主机真实共享文件夹路径挂载 (对齐绿联/群晖存储卷路径)
-DOWNLOAD_DIR=/volume1/Download
-MEDIA_DIR=/volume1/Media
-TRASH_DIR=/volume1/.trash
-
-# 4. 端口映射 (按需调整)
-NASIO_PORT=8000
-QBITTORRENT_WEB_PORT=8085
-QBITTORRENT_BT_PORT=6881
-WEB_PORT=8086
-```
-
-> [!TIP]
-> **权限自愈说明**：绿联 UGOS 等 NAS 系统在用户修改共享权限后经常会重置文件夹属主，导致 Docker 容器报权限不足或 qBittorrent 报 `missingFiles`。Nasio 镜像内嵌了 `entrypoint.sh` 权限自愈机制，会在启动时自动打通顶层共享目录穿透权限 (`a+rwx`)，并在运行时自动对齐属主，彻底免除权限烦恼。
-
-#### 3. 初始化业务配置文件
-```bash
-mkdir -p ./data/server ./data/qbittorrent
-cp server/data/config.example.yaml ./data/server/config.yaml
-```
-根据需要调整 `data/server/config.yaml` 中的下载器、路径白名单及 AI 模型配置。
-
-#### 4. 一键启动容器集群
-```bash
+# 3. 本地构建并拉起全栈容器
 docker compose up -d --build
 ```
 
-#### 5. 访问与服务验证
+---
+
+#### 服务访问与端口验证
 - **Web 管理控制台**：浏览器访问 `http://<NAS_IP>:8086`
-- **服务端 API 与文档**：浏览器访问 `http://<NAS_IP>:8000/docs`
+- **服务端 API 与 OpenAPI 交互文档**：浏览器访问 `http://<NAS_IP>:8000/docs`
 - **MCP SSE 协议端点**：`http://<NAS_IP>:8000/sse`
 - **qBittorrent WebUI**：浏览器访问 `http://<NAS_IP>:8085`（默认账号：`admin`，默认密码：`adminadmin`）
 
