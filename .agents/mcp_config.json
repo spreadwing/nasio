@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "nasio": {
+      "serverUrl": "http://<your-nas-ip>:8000/sse",
+      "headers": {
+        "Authorization": "Bearer your_secure_random_token_here"
+      }
+    }
+  }
+}

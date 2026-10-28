@@ -1,0 +1,83 @@
+name: nasio
+
+services:
+  # -------------------------------------------------------------
+  # 1. qBittorrent 高性能离线下载引擎
+  # -------------------------------------------------------------
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    networks:
+      - nas-network
+    ports:
+      # WebUI 管理后台
+      - "${QBITTORRENT_WEB_PORT:-8085}:8080"
+      # BT / PT 监听端口 (TCP & UDP)
+      - "${QBITTORRENT_BT_PORT:-6881}:6881"
+      - "${QBITTORRENT_BT_PORT:-6881}:6881/udp"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Asia/Shanghai}
+      - WEBUI_PORT=8080
+    volumes:
+      - ${QBITTORRENT_CONFIG_DIR:-./data/qbittorrent}:/config
+      - ${DOWNLOAD_DIR:-/volume1/Download}:/volume1/Download
+      - ${MEDIA_DIR:-/volume1/Media}:/volume1/Media
+
+  # -------------------------------------------------------------
+  # 2. Nasio 核心数字资产中枢与统一网关 (FastAPI / MCP SSE / REST)
+  # -------------------------------------------------------------
+  nasio:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: nasio:latest
+    container_name: nasio
+    restart: unless-stopped
+    depends_on:
+      - qbittorrent
+    networks:
+      - nas-network
+    ports:
+      # 统一外部服务端口: MCP /sse 与 REST/WS
+      - "${NASIO_PORT:-8000}:8000"
+    environment:
+      # 访问安全令牌 (Bearer Token)
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN:-your_secure_random_token_here}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Asia/Shanghai}
+    volumes:
+      # 业务配置文件与持久化数据
+      - ${NASIO_DATA_DIR:-./data/server}:/app/data
+      # 共享存储池白名单目录 (对齐 NAS 真实路径)
+      - ${DOWNLOAD_DIR:-/volume1/Download}:/volume1/Download
+      - ${MEDIA_DIR:-/volume1/Media}:/volume1/Media
+      # 防灾隔离回收站
+      - ${TRASH_DIR:-/volume1/.trash}:/volume1/.trash
+
+  # -------------------------------------------------------------
+  # 3. Nasio 跨平台 Web 控制台 (Nginx Alpine)
+  # -------------------------------------------------------------
+  nasio-web:
+    image: nginx:alpine
+    container_name: nasio-web
+    restart: unless-stopped
+    depends_on:
+      - nasio
+    networks:
+      - nas-network
+    ports:
+      # Web 控制台浏览器访问端口
+      - "${WEB_PORT:-8086}:80"
+    volumes:
+      # Flutter Web 静态产物目录
+      - ./docker/web:/usr/share/nginx/html:ro
+      # Nginx 反向代理配置
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
+networks:
+  nas-network:
+    name: nas-network

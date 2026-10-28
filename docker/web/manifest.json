@@ -1,0 +1,11 @@
+{
+  "name": "Nasio Client",
+  "short_name": "Nasio",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#0288D1",
+  "description": "Nasio 绿联 NAS 智能中枢与资产管家客户端",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}
