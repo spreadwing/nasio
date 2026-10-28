@@ -231,7 +231,10 @@ python -m nasio.main
 
 ### 方案三：客户端（Flutter）构建与运行
 
-#### 1. 前置环境
+> [!TIP]
+> **免本地编译直接下载**：仓库已集成 GitHub Actions 自动化多端打包流水线。每次提交或发布版本时，云端会自动编译 **Android APK**、**Windows x64 桌面端** 与 **Web 控制台包**。您可直接前往仓库的 [Actions 构建流水线](https://github.com/spreadwing/nasio/actions) 或 [Releases 发布页面](https://github.com/spreadwing/nasio/releases) 直接下载现成产物！
+
+#### 1. 前置环境 (本地开发)
 - 安装 [Flutter SDK](https://docs.flutter.dev/get-started/install)（建议 3.24+ 或 3.27+）
 - 执行 `flutter doctor` 确认环境无异常。
 

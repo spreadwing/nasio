@@ -1,0 +1,153 @@
+name: Build Client Apps
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "client/**"
+      - ".github/workflows/client-build.yml"
+    tags:
+      - "v*.*.*"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "client/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # -------------------------------------------------------------
+  # 1. 编译 Android APK 与 Web 控制台产物 (Ubuntu Runner)
+  # -------------------------------------------------------------
+  build-android-and-web:
+    name: Build Android APK & Web Console
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Client Dependencies
+        run: |
+          cd client
+          flutter config --no-analytics
+          flutter pub get
+
+      - name: Build Web Target
+        run: |
+          cd client
+          flutter build web --release --no-tree-shake-icons --no-wasm-dry-run
+          cd build/web
+          zip -r ../../nasio-web.zip .
+
+      - name: Build Android APK
+        run: |
+          cd client
+          flutter build apk --release
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nasio-android-apk
+          path: client/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      - name: Upload Web Console Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nasio-web
+          path: client/nasio-web.zip
+          if-no-files-found: error
+
+  # -------------------------------------------------------------
+  # 2. 编译 Windows x64 桌面端产物 (Windows Runner)
+  # -------------------------------------------------------------
+  build-windows:
+    name: Build Windows x64 Desktop
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Client Dependencies
+        run: |
+          cd client
+          flutter config --no-analytics
+          flutter pub get
+
+      - name: Build Windows Desktop Release
+        run: |
+          cd client
+          flutter build windows --release
+
+      - name: Compress Windows Release Bundle
+        shell: pwsh
+        run: |
+          Compress-Archive -Path client\build\windows\x64\runner\Release\* -DestinationPath client\nasio-windows-x64.zip
+
+      - name: Upload Windows x64 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nasio-windows-x64
+          path: client/nasio-windows-x64.zip
+          if-no-files-found: error
+
+  # -------------------------------------------------------------
+  # 3. 发布版本时自动附加多端产物到 GitHub Releases
+  # -------------------------------------------------------------
+  publish-release:
+    name: Publish Release Assets
+    needs: [build-android-and-web, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: nasio-android-apk
+          path: release-assets/
+
+      - name: Download Web Package
+        uses: actions/download-artifact@v4
+        with:
+          name: nasio-web
+          path: release-assets/
+
+      - name: Download Windows Package
+        uses: actions/download-artifact@v4
+        with:
+          name: nasio-windows-x64
+          path: release-assets/
+
+      - name: Rename Android APK with Tag Name
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          if [ -f "release-assets/app-release.apk" ]; then
+            mv release-assets/app-release.apk "release-assets/nasio-${TAG_NAME}.apk"
+          fi
+
+      - name: Upload Assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
