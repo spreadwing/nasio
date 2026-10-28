@@ -33,7 +33,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    image: nasio:latest
+    image: ghcr.io/spreadwing/nasio:latest
     container_name: nasio
     restart: unless-stopped
     depends_on:
